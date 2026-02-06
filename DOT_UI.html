@@ -1,0 +1,1604 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>DOT — UI/UX 原型图</title>
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=Space+Mono:wght@400;700&family=Noto+Sans+SC:wght@300;400;500;700&display=swap');
+  
+  :root {
+    --bg: #F2F0EC;
+    --bg-grid: #E2DFD9;
+    --player-dark: #7A1B1B;
+    --player-mid: #C43C3C;
+    --player-light: #E87070;
+    --player-glow: rgba(232,112,112,0.3);
+    --enemy-dark: #1A4A5A;
+    --enemy-mid: #2A8A9A;
+    --enemy-light: #5CC8D8;
+    --enemy-glow: rgba(92,200,216,0.25);
+    --neutral-color: #9E9B95;
+    --neutral-border: #B5B1AA;
+    --text-primary: #2A2722;
+    --text-secondary: #6B665E;
+    --panel-bg: rgba(20,20,18,0.88);
+    --panel-border: rgba(255,255,255,0.08);
+    --panel-text: #E8E4DC;
+    --accent-gold: #D4A853;
+    --accent-green: #5BA870;
+    --accent-warn: #E8A842;
+  }
+
+  * { margin:0; padding:0; box-sizing:border-box; }
+  
+  body {
+    font-family: 'Noto Sans SC', sans-serif;
+    background: var(--bg);
+    color: var(--text-primary);
+    overflow: hidden;
+    height: 100vh;
+    width: 100vw;
+  }
+
+  /* ===== DOT GRID BACKGROUND ===== */
+  .game-viewport {
+    position: relative;
+    width: 100%;
+    height: 100%;
+    background-image: radial-gradient(circle, var(--bg-grid) 1px, transparent 1px);
+    background-size: 24px 24px;
+    overflow: hidden;
+  }
+
+  /* ===== CANVAS FOR NODES & BRIDGES ===== */
+  canvas#gameCanvas {
+    position: absolute;
+    top: 0; left: 0;
+    width: 100%;
+    height: 100%;
+  }
+
+  /* ===== TOP RESOURCE BAR ===== */
+  .resource-bar {
+    position: absolute;
+    top: 16px;
+    left: 50%;
+    transform: translateX(-50%);
+    display: flex;
+    gap: 24px;
+    background: var(--panel-bg);
+    backdrop-filter: blur(12px);
+    border: 1px solid var(--panel-border);
+    border-radius: 8px;
+    padding: 8px 20px;
+    z-index: 100;
+  }
+  .resource-item {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    font-family: 'Space Mono', monospace;
+    font-size: 13px;
+    color: var(--panel-text);
+    letter-spacing: 0.5px;
+  }
+  .resource-icon {
+    width: 18px;
+    height: 18px;
+    border-radius: 50%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+  }
+  .res-alpha .resource-icon { background: #9B59B6; }
+  .res-beta .resource-icon { background: #5BA870; }
+  .res-gamma .resource-icon { background: #E8963C; }
+  .resource-value { font-weight: 700; min-width: 32px; }
+  .resource-label { font-size: 10px; color: var(--text-secondary); opacity: 0.7; text-transform: uppercase; letter-spacing: 1px; }
+
+  /* ===== SPEED CONTROLS (TOP LEFT) ===== */
+  .speed-controls {
+    position: absolute;
+    top: 16px;
+    left: 16px;
+    display: flex;
+    gap: 4px;
+    z-index: 100;
+  }
+  .speed-btn {
+    background: var(--panel-bg);
+    border: 1px solid var(--panel-border);
+    color: var(--panel-text);
+    font-family: 'Space Mono', monospace;
+    font-size: 11px;
+    padding: 6px 10px;
+    border-radius: 4px;
+    cursor: pointer;
+    transition: all 0.15s;
+  }
+  .speed-btn:hover { background: rgba(40,40,38,0.95); }
+  .speed-btn.active { background: var(--player-mid); border-color: var(--player-light); }
+
+  /* ===== MINIMAP (TOP RIGHT) ===== */
+  .minimap {
+    position: absolute;
+    top: 16px;
+    right: 16px;
+    width: 160px;
+    height: 120px;
+    background: var(--panel-bg);
+    border: 1px solid var(--panel-border);
+    border-radius: 6px;
+    overflow: hidden;
+    z-index: 100;
+  }
+  .minimap canvas {
+    width: 100%;
+    height: 100%;
+  }
+  .minimap-viewport-rect {
+    position: absolute;
+    border: 1px solid rgba(255,255,255,0.4);
+    pointer-events: none;
+  }
+
+  /* ===== BATTLE TOAST (TOP RIGHT, BELOW MINIMAP) ===== */
+  .battle-toast {
+    position: absolute;
+    top: 148px;
+    right: 16px;
+    z-index: 100;
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+  }
+  .toast-item {
+    background: var(--panel-bg);
+    border-left: 3px solid var(--accent-warn);
+    border-radius: 0 6px 6px 0;
+    padding: 8px 12px;
+    font-size: 12px;
+    color: var(--panel-text);
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    animation: toastSlide 0.3s ease-out;
+    min-width: 180px;
+  }
+  @keyframes toastSlide {
+    from { transform: translateX(100%); opacity:0; }
+    to { transform: translateX(0); opacity:1; }
+  }
+  .toast-dot {
+    width: 6px; height: 6px;
+    background: var(--accent-warn);
+    border-radius: 50%;
+    animation: pulse 1s infinite;
+  }
+  @keyframes pulse {
+    0%,100% { opacity:1; }
+    50% { opacity:0.3; }
+  }
+
+  /* ===== NODE INFO PANEL (BOTTOM LEFT) ===== */
+  .node-panel {
+    position: absolute;
+    bottom: 16px;
+    left: 16px;
+    width: 280px;
+    background: var(--panel-bg);
+    backdrop-filter: blur(12px);
+    border: 1px solid var(--panel-border);
+    border-radius: 8px;
+    z-index: 100;
+    overflow: hidden;
+  }
+  .node-panel-header {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 12px 16px;
+    border-bottom: 1px solid var(--panel-border);
+  }
+  .node-panel-icon {
+    width: 28px;
+    height: 28px;
+    border-radius: 50%;
+    background: var(--player-dark);
+    border: 2px solid var(--player-light);
+  }
+  .node-panel-title {
+    font-size: 14px;
+    font-weight: 700;
+    color: var(--panel-text);
+    letter-spacing: 0.5px;
+  }
+  .node-panel-faction {
+    font-size: 10px;
+    color: var(--player-light);
+    text-transform: uppercase;
+    letter-spacing: 1.5px;
+  }
+  .node-panel-body {
+    padding: 12px 16px;
+  }
+  .node-stat-row {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 4px 0;
+    font-size: 12px;
+    color: var(--panel-text);
+  }
+  .node-stat-label { opacity: 0.6; }
+  .node-stat-value { font-family: 'Space Mono', monospace; font-weight: 700; }
+  .hp-bar-container {
+    width: 100%;
+    height: 4px;
+    background: rgba(255,255,255,0.1);
+    border-radius: 2px;
+    margin: 8px 0;
+    overflow: hidden;
+  }
+  .hp-bar-fill {
+    height: 100%;
+    background: var(--accent-green);
+    border-radius: 2px;
+    transition: width 0.3s;
+  }
+  .node-connections {
+    padding: 8px 16px 12px;
+    border-top: 1px solid var(--panel-border);
+    font-size: 11px;
+    color: rgba(232,228,220,0.5);
+  }
+  .node-connections span {
+    display: inline-block;
+    background: rgba(255,255,255,0.06);
+    padding: 2px 8px;
+    border-radius: 3px;
+    margin: 2px 4px 2px 0;
+    font-family: 'Space Mono', monospace;
+    font-size: 10px;
+  }
+
+  /* ===== GARRISON & COMMAND PANEL (BOTTOM CENTER) ===== */
+  .command-panel {
+    position: absolute;
+    bottom: 16px;
+    left: 312px;
+    right: 200px;
+    min-width: 360px;
+    background: var(--panel-bg);
+    backdrop-filter: blur(12px);
+    border: 1px solid var(--panel-border);
+    border-radius: 8px;
+    z-index: 100;
+    display: flex;
+    flex-direction: column;
+  }
+  .command-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 10px 16px;
+    border-bottom: 1px solid var(--panel-border);
+  }
+  .command-title {
+    font-size: 12px;
+    font-weight: 500;
+    color: var(--panel-text);
+    letter-spacing: 0.5px;
+  }
+  .command-select-all {
+    font-size: 10px;
+    color: var(--player-light);
+    cursor: pointer;
+    text-transform: uppercase;
+    letter-spacing: 1px;
+    border: 1px solid rgba(127,179,224,0.3);
+    padding: 3px 8px;
+    border-radius: 3px;
+    transition: all 0.15s;
+  }
+  .command-select-all:hover { background: rgba(127,179,224,0.15); }
+  
+  .garrison-grid {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 6px;
+    padding: 12px 16px;
+  }
+  .unit-slot {
+    width: 32px;
+    height: 32px;
+    border-radius: 50%;
+    background: rgba(127,179,224,0.15);
+    border: 1.5px solid rgba(127,179,224,0.3);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    cursor: pointer;
+    transition: all 0.15s;
+    position: relative;
+  }
+  .unit-slot:hover { border-color: var(--player-light); background: rgba(127,179,224,0.25); }
+  .unit-slot.selected { border-color: var(--player-light); background: rgba(127,179,224,0.35); box-shadow: 0 0 8px var(--player-glow); }
+  .unit-slot .unit-dot {
+    width: 10px;
+    height: 10px;
+    border-radius: 50%;
+    background: var(--player-light);
+  }
+  .unit-slot .unit-hp {
+    position: absolute;
+    bottom: -2px;
+    left: 50%;
+    transform: translateX(-50%);
+    width: 18px;
+    height: 2px;
+    background: rgba(255,255,255,0.15);
+    border-radius: 1px;
+    overflow: hidden;
+  }
+  .unit-slot .unit-hp-fill {
+    height: 100%;
+    background: var(--accent-green);
+    border-radius: 1px;
+  }
+
+  .command-actions {
+    display: flex;
+    gap: 8px;
+    padding: 8px 16px 12px;
+    border-top: 1px solid var(--panel-border);
+  }
+  .cmd-btn {
+    flex: 1;
+    padding: 8px 0;
+    border: 1px solid var(--panel-border);
+    border-radius: 5px;
+    background: rgba(255,255,255,0.04);
+    color: var(--panel-text);
+    font-family: 'Noto Sans SC', sans-serif;
+    font-size: 12px;
+    font-weight: 500;
+    cursor: pointer;
+    transition: all 0.15s;
+    text-align: center;
+    letter-spacing: 0.5px;
+  }
+  .cmd-btn:hover { background: rgba(255,255,255,0.08); }
+  .cmd-btn.primary { background: var(--player-mid); border-color: var(--player-light); }
+  .cmd-btn.primary:hover { background: var(--player-dark); }
+
+  /* ===== PRODUCTION PANEL (RIGHT SIDE OF NODE PANEL) ===== */
+  .production-panel {
+    position: absolute;
+    bottom: 16px;
+    right: 16px;
+    width: 172px;
+    background: var(--panel-bg);
+    backdrop-filter: blur(12px);
+    border: 1px solid var(--panel-border);
+    border-radius: 8px;
+    z-index: 100;
+  }
+  .prod-header {
+    padding: 10px 14px;
+    border-bottom: 1px solid var(--panel-border);
+    font-size: 12px;
+    font-weight: 500;
+    color: var(--panel-text);
+    letter-spacing: 0.5px;
+  }
+  .prod-body {
+    padding: 12px 14px;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 10px;
+  }
+  .prod-cd-ring {
+    width: 56px;
+    height: 56px;
+    border-radius: 50%;
+    border: 3px solid rgba(255,255,255,0.08);
+    position: relative;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+  }
+  .prod-cd-ring svg {
+    position: absolute;
+    top: -3px; left: -3px;
+    width: 62px; height: 62px;
+    transform: rotate(-90deg);
+  }
+  .prod-cd-ring svg circle {
+    fill: none;
+    stroke: var(--player-light);
+    stroke-width: 3;
+    stroke-dasharray: 176;
+    stroke-dashoffset: 44;
+    stroke-linecap: round;
+  }
+  .prod-cd-text {
+    font-family: 'Space Mono', monospace;
+    font-size: 14px;
+    font-weight: 700;
+    color: var(--panel-text);
+  }
+  .prod-queue {
+    font-size: 11px;
+    color: rgba(232,228,220,0.6);
+  }
+  .prod-cost {
+    font-size: 10px;
+    color: rgba(232,228,220,0.4);
+    font-family: 'Space Mono', monospace;
+  }
+  .prod-toggle {
+    width: 100%;
+    padding: 8px 0;
+    border: 1px solid var(--accent-warn);
+    border-radius: 5px;
+    background: rgba(232,168,66,0.12);
+    color: var(--accent-warn);
+    font-family: 'Noto Sans SC', sans-serif;
+    font-size: 12px;
+    font-weight: 500;
+    cursor: pointer;
+    text-align: center;
+    transition: all 0.15s;
+  }
+  .prod-toggle:hover { background: rgba(232,168,66,0.22); }
+
+  /* ===== BUILD BRIDGE OVERLAY ===== */
+  .bridge-overlay {
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%);
+    background: var(--panel-bg);
+    backdrop-filter: blur(16px);
+    border: 1px solid var(--panel-border);
+    border-radius: 10px;
+    padding: 20px 24px;
+    z-index: 200;
+    min-width: 260px;
+    display: none;
+  }
+  .bridge-overlay.show { display: block; }
+  .bridge-overlay-title {
+    font-size: 14px;
+    font-weight: 700;
+    color: var(--panel-text);
+    margin-bottom: 12px;
+    letter-spacing: 0.5px;
+  }
+  .bridge-cost-row {
+    display: flex;
+    justify-content: space-between;
+    font-size: 12px;
+    color: var(--panel-text);
+    padding: 4px 0;
+  }
+  .bridge-cost-row .cost-val {
+    font-family: 'Space Mono', monospace;
+    font-weight: 700;
+    color: var(--accent-gold);
+  }
+  .bridge-actions {
+    display: flex;
+    gap: 8px;
+    margin-top: 14px;
+  }
+
+  /* ===== SECTION LABEL OVERLAY ===== */
+  .section-labels {
+    position: absolute;
+    top: 0; left: 0;
+    width: 100%;
+    height: 100%;
+    pointer-events: none;
+    z-index: 50;
+  }
+  .section-label {
+    position: absolute;
+    font-size: 9px;
+    font-family: 'Space Mono', monospace;
+    color: rgba(42,39,34,0.25);
+    text-transform: uppercase;
+    letter-spacing: 2px;
+    pointer-events: none;
+  }
+
+  /* ===== PAGE SELECTOR ===== */
+  .page-nav {
+    position: fixed;
+    top: 0; left: 0; right: 0;
+    background: #1A1917;
+    display: flex;
+    align-items: center;
+    padding: 0 20px;
+    height: 44px;
+    z-index: 1000;
+    gap: 4px;
+  }
+  .page-nav-title {
+    font-family: 'Space Mono', monospace;
+    font-size: 14px;
+    font-weight: 700;
+    color: #E8E4DC;
+    margin-right: 24px;
+    letter-spacing: 2px;
+  }
+  .page-tab {
+    padding: 10px 16px;
+    font-family: 'Noto Sans SC', sans-serif;
+    font-size: 12px;
+    color: rgba(232,228,220,0.5);
+    cursor: pointer;
+    border-bottom: 2px solid transparent;
+    transition: all 0.15s;
+  }
+  .page-tab:hover { color: rgba(232,228,220,0.8); }
+  .page-tab.active { color: #E8E4DC; border-bottom-color: var(--player-light); }
+
+  .page-content {
+    display: none;
+    position: absolute;
+    top: 44px;
+    left: 0; right: 0; bottom: 0;
+  }
+  .page-content.active { display: block; }
+
+  /* ===== PAGE 2: COLOR PALETTE ===== */
+  .palette-page {
+    padding: 40px;
+    overflow-y: auto;
+    height: calc(100vh - 44px);
+    background: var(--bg);
+  }
+  .palette-section {
+    margin-bottom: 40px;
+  }
+  .palette-title {
+    font-family: 'Space Mono', monospace;
+    font-size: 18px;
+    font-weight: 700;
+    margin-bottom: 20px;
+    color: var(--text-primary);
+  }
+  .palette-subtitle {
+    font-size: 13px;
+    color: var(--text-secondary);
+    margin-bottom: 16px;
+    line-height: 1.6;
+  }
+  .color-row {
+    display: flex;
+    gap: 16px;
+    flex-wrap: wrap;
+    margin-bottom: 16px;
+  }
+  .color-swatch {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 6px;
+  }
+  .swatch-circle {
+    width: 64px;
+    height: 64px;
+    border-radius: 50%;
+    border: 2px solid rgba(0,0,0,0.08);
+  }
+  .swatch-label {
+    font-family: 'Space Mono', monospace;
+    font-size: 10px;
+    color: var(--text-secondary);
+    text-align: center;
+  }
+  .swatch-name {
+    font-size: 11px;
+    font-weight: 500;
+    color: var(--text-primary);
+  }
+
+  /* ===== NODE VISUAL SPECS ===== */
+  .node-specs {
+    display: flex;
+    gap: 40px;
+    flex-wrap: wrap;
+    margin-top: 20px;
+  }
+  .node-spec-card {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 12px;
+    padding: 24px;
+    background: white;
+    border-radius: 12px;
+    border: 1px solid rgba(0,0,0,0.06);
+    min-width: 140px;
+  }
+  .node-spec-visual {
+    position: relative;
+  }
+
+  /* ===== BRIDGE VISUAL SPECS ===== */
+  .bridge-specs {
+    display: flex;
+    flex-direction: column;
+    gap: 16px;
+    margin-top: 20px;
+  }
+  .bridge-spec-row {
+    display: flex;
+    align-items: center;
+    gap: 16px;
+    padding: 16px 20px;
+    background: white;
+    border-radius: 8px;
+    border: 1px solid rgba(0,0,0,0.06);
+  }
+  .bridge-spec-line {
+    width: 120px;
+    height: 4px;
+    flex-shrink: 0;
+  }
+  .bridge-spec-text {
+    font-size: 12px;
+    color: var(--text-primary);
+  }
+  .bridge-spec-detail {
+    font-size: 11px;
+    color: var(--text-secondary);
+    margin-top: 2px;
+  }
+
+  /* ===== PAGE 3: INTERACTION FLOW ===== */
+  .flow-page {
+    padding: 40px;
+    overflow-y: auto;
+    height: calc(100vh - 44px);
+    background: var(--bg);
+  }
+  .flow-section {
+    margin-bottom: 48px;
+  }
+  .flow-title {
+    font-family: 'Space Mono', monospace;
+    font-size: 18px;
+    font-weight: 700;
+    margin-bottom: 8px;
+    color: var(--text-primary);
+  }
+  .flow-desc {
+    font-size: 13px;
+    color: var(--text-secondary);
+    margin-bottom: 20px;
+    line-height: 1.7;
+  }
+  .flow-steps {
+    display: flex;
+    flex-direction: column;
+    gap: 0;
+    position: relative;
+    padding-left: 28px;
+  }
+  .flow-steps::before {
+    content: '';
+    position: absolute;
+    left: 8px;
+    top: 8px;
+    bottom: 8px;
+    width: 2px;
+    background: rgba(0,0,0,0.08);
+  }
+  .flow-step {
+    position: relative;
+    padding: 10px 0 10px 20px;
+  }
+  .flow-step::before {
+    content: '';
+    position: absolute;
+    left: -24px;
+    top: 14px;
+    width: 12px;
+    height: 12px;
+    border-radius: 50%;
+    background: var(--player-mid);
+    border: 2px solid var(--bg);
+  }
+  .flow-step-label {
+    font-size: 12px;
+    font-weight: 700;
+    color: var(--text-primary);
+    margin-bottom: 3px;
+  }
+  .flow-step-detail {
+    font-size: 12px;
+    color: var(--text-secondary);
+    line-height: 1.5;
+  }
+
+  /* ===== PAGE 4: SUGGESTIONS ===== */
+  .suggestions-page {
+    padding: 40px;
+    overflow-y: auto;
+    height: calc(100vh - 44px);
+    background: var(--bg);
+  }
+  .suggestion-card {
+    background: white;
+    border-radius: 10px;
+    border: 1px solid rgba(0,0,0,0.06);
+    padding: 20px 24px;
+    margin-bottom: 16px;
+  }
+  .suggestion-tag {
+    display: inline-block;
+    font-size: 10px;
+    font-family: 'Space Mono', monospace;
+    text-transform: uppercase;
+    letter-spacing: 1px;
+    padding: 2px 8px;
+    border-radius: 3px;
+    margin-bottom: 8px;
+  }
+  .tag-ux { background: rgba(91,168,112,0.12); color: var(--accent-green); }
+  .tag-visual { background: rgba(127,179,224,0.15); color: var(--player-mid); }
+  .tag-mechanic { background: rgba(212,168,83,0.15); color: var(--accent-gold); }
+  .tag-perf { background: rgba(200,60,60,0.1); color: var(--enemy-mid); }
+  .suggestion-title {
+    font-size: 14px;
+    font-weight: 700;
+    color: var(--text-primary);
+    margin-bottom: 6px;
+  }
+  .suggestion-body {
+    font-size: 13px;
+    color: var(--text-secondary);
+    line-height: 1.7;
+  }
+</style>
+</head>
+<body>
+
+<!-- Page Navigation -->
+<nav class="page-nav">
+  <div class="page-nav-title">D O T</div>
+  <div class="page-tab active" onclick="switchPage(0)">游戏界面原型</div>
+  <div class="page-tab" onclick="switchPage(1)">视觉规范</div>
+  <div class="page-tab" onclick="switchPage(2)">交互流程</div>
+  <!-- <div class="page-tab" onclick="switchPage(3)">策划建议</div> -->
+</nav>
+
+<!-- ==================== PAGE 1: GAME UI PROTOTYPE ==================== -->
+<div class="page-content active" id="page0">
+  <div class="game-viewport">
+    <canvas id="gameCanvas"></canvas>
+
+    <!-- Speed Controls -->
+    <div class="speed-controls">
+      <div class="speed-btn" onclick="this.parentElement.querySelectorAll('.speed-btn').forEach(b=>b.classList.remove('active'));this.classList.add('active')">⏸</div>
+      <div class="speed-btn active" onclick="this.parentElement.querySelectorAll('.speed-btn').forEach(b=>b.classList.remove('active'));this.classList.add('active')">1×</div>
+      <div class="speed-btn" onclick="this.parentElement.querySelectorAll('.speed-btn').forEach(b=>b.classList.remove('active'));this.classList.add('active')">2×</div>
+    </div>
+
+    <!-- Resource Bar -->
+    <div class="resource-bar">
+      <div class="resource-item res-alpha">
+        <div class="resource-icon"></div>
+        <div>
+          <div class="resource-value">127</div>
+          <div class="resource-label">α 造兵</div>
+        </div>
+      </div>
+      <div class="resource-item res-beta">
+        <div class="resource-icon"></div>
+        <div>
+          <div class="resource-value">43</div>
+          <div class="resource-label">β 建桥</div>
+        </div>
+      </div>
+      <div class="resource-item res-gamma">
+        <div class="resource-icon"></div>
+        <div>
+          <div class="resource-value">12</div>
+          <div class="resource-label">γ 升级</div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Minimap -->
+    <div class="minimap">
+      <canvas id="minimapCanvas"></canvas>
+    </div>
+
+    <!-- Battle Toast -->
+    <div class="battle-toast">
+      <div class="toast-item">
+        <div class="toast-dot"></div>
+        <span>节点 #7 正在被攻击</span>
+      </div>
+    </div>
+
+    <!-- Node Info Panel -->
+    <div class="node-panel">
+      <div class="node-panel-header">
+        <div class="node-panel-icon"></div>
+        <div>
+          <div class="node-panel-title">城市 α</div>
+          <div class="node-panel-faction">PLAYER · 主城</div>
+        </div>
+      </div>
+      <div class="node-panel-body">
+        <div class="node-stat-row">
+          <span class="node-stat-label">生命值</span>
+          <span class="node-stat-value">82 / 100</span>
+        </div>
+        <div class="hp-bar-container">
+          <div class="hp-bar-fill" style="width:82%"></div>
+        </div>
+        <div class="node-stat-row">
+          <span class="node-stat-label">驻军</span>
+          <span class="node-stat-value">8 / 15</span>
+        </div>
+        <div class="node-stat-row">
+          <span class="node-stat-label">状态</span>
+          <span class="node-stat-value" style="color:var(--accent-green)">安全</span>
+        </div>
+      </div>
+      <div class="node-connections">
+        连接 → <span>#3</span><span>#5</span><span>#9</span>
+      </div>
+    </div>
+
+    <!-- Command Panel -->
+    <div class="command-panel">
+      <div class="command-header">
+        <span class="command-title">驻军指挥 · 城市 α</span>
+        <span class="command-select-all">全选</span>
+      </div>
+      <div class="garrison-grid">
+        <div class="unit-slot selected"><div class="unit-dot"></div><div class="unit-hp"><div class="unit-hp-fill" style="width:100%"></div></div></div>
+        <div class="unit-slot selected"><div class="unit-dot"></div><div class="unit-hp"><div class="unit-hp-fill" style="width:85%"></div></div></div>
+        <div class="unit-slot selected"><div class="unit-dot"></div><div class="unit-hp"><div class="unit-hp-fill" style="width:92%"></div></div></div>
+        <div class="unit-slot"><div class="unit-dot"></div><div class="unit-hp"><div class="unit-hp-fill" style="width:70%"></div></div></div>
+        <div class="unit-slot"><div class="unit-dot"></div><div class="unit-hp"><div class="unit-hp-fill" style="width:100%"></div></div></div>
+        <div class="unit-slot"><div class="unit-dot"></div><div class="unit-hp"><div class="unit-hp-fill" style="width:55%"></div></div></div>
+        <div class="unit-slot"><div class="unit-dot"></div><div class="unit-hp"><div class="unit-hp-fill" style="width:100%"></div></div></div>
+        <div class="unit-slot"><div class="unit-dot"></div><div class="unit-hp"><div class="unit-hp-fill" style="width:40%"></div></div></div>
+      </div>
+      <div class="command-actions">
+        <div class="cmd-btn primary">派遣到目标</div>
+        <div class="cmd-btn" onclick="document.querySelector('.bridge-overlay').classList.toggle('show')">建桥</div>
+        <div class="cmd-btn">拆桥</div>
+      </div>
+    </div>
+
+    <!-- Production Panel -->
+    <div class="production-panel">
+      <div class="prod-header">生产队列</div>
+      <div class="prod-body">
+        <div class="prod-cd-ring">
+          <svg viewBox="0 0 62 62">
+            <circle cx="31" cy="31" r="28"></circle>
+          </svg>
+          <span class="prod-cd-text">2.1s</span>
+        </div>
+        <div class="prod-queue">队列：连续生产中</div>
+        <div class="prod-cost">消耗 α ×5 / 个</div>
+        <div class="prod-toggle">⏸ 暂停生产</div>
+      </div>
+    </div>
+
+    <!-- Bridge Build Overlay -->
+    <div class="bridge-overlay">
+      <div class="bridge-overlay-title">建造桥梁</div>
+      <div class="bridge-cost-row">
+        <span>目标</span>
+        <span style="font-weight:600;color:var(--panel-text)">节点 #5</span>
+      </div>
+      <div class="bridge-cost-row">
+        <span>距离</span>
+        <span class="cost-val">短</span>
+      </div>
+      <div class="bridge-cost-row">
+        <span>消耗 β</span>
+        <span class="cost-val">15</span>
+      </div>
+      <div class="bridge-cost-row">
+        <span>预计耗时</span>
+        <span class="cost-val">~10s</span>
+      </div>
+      <div class="bridge-cost-row">
+        <span>最少兵力</span>
+        <span class="cost-val">1</span>
+      </div>
+      <div class="bridge-actions">
+        <div class="cmd-btn primary" onclick="document.querySelector('.bridge-overlay').classList.remove('show')">确认建造</div>
+        <div class="cmd-btn" onclick="document.querySelector('.bridge-overlay').classList.remove('show')">取消</div>
+      </div>
+    </div>
+
+    <!-- Section Labels -->
+    <div class="section-labels">
+      <div class="section-label" style="top:62px;left:16px;">CONTROLS</div>
+      <div class="section-label" style="top:62px;right:178px;">MINIMAP</div>
+    </div>
+  </div>
+</div>
+
+<!-- ==================== PAGE 2: VISUAL SPECS ==================== -->
+<div class="page-content" id="page1">
+  <div class="palette-page">
+    <div class="palette-section">
+      <div class="palette-title">色彩体系 · Color Palette</div>
+      <div class="palette-subtitle">
+        DOT 的配色遵循「深色实体 + 浅色环境」原则。玩家蓝与敌方红形成鲜明对比，中立灰提供缓冲。背景保持极浅暖灰，确保点与线的信息清晰可读。
+      </div>
+      
+      <div style="font-size:12px;font-weight:700;margin-bottom:12px;color:var(--text-primary)">玩家阵营 · PLAYER</div>
+      <div class="color-row">
+        <div class="color-swatch">
+          <div class="swatch-circle" style="background:#7A1B1B"></div>
+          <div class="swatch-name">暗红</div>
+          <div class="swatch-label">#7A1B1B<br>城市节点</div>
+        </div>
+        <div class="color-swatch">
+          <div class="swatch-circle" style="background:#C43C3C"></div>
+          <div class="swatch-name">主红</div>
+          <div class="swatch-label">#C43C3C<br>已建桥梁/强调</div>
+        </div>
+        <div class="color-swatch">
+          <div class="swatch-circle" style="background:#E87070"></div>
+          <div class="swatch-name">浅红</div>
+          <div class="swatch-label">#E87070"<br>兵种/高亮/UI</div>
+        </div>
+        <div class="color-swatch">
+          <div class="swatch-circle" style="background:rgba(232,112,112,0.3);border-color:rgba(232,112,112,0.3)"></div>
+          <div class="swatch-name">红光晕</div>
+          <div class="swatch-label">rgba 0.3<br>选中发光</div>
+        </div>
+      </div>
+
+      <div style="font-size:12px;font-weight:700;margin:20px 0 12px;color:var(--text-primary)">敌方阵营 · ENEMY</div>
+      <div class="color-row">
+        <div class="color-swatch">
+          <div class="swatch-circle" style="background:#1A4A5A"></div>
+          <div class="swatch-name">深青</div>
+          <div class="swatch-label">#1A4A5A<br>城市节点</div>
+        </div>
+        <div class="color-swatch">
+          <div class="swatch-circle" style="background:#2A8A9A"></div>
+          <div class="swatch-name">主青</div>
+          <div class="swatch-label">#2A8A9A<br>已建桥梁</div>
+        </div>
+        <div class="color-swatch">
+          <div class="swatch-circle" style="background:#5CC8D8"></div>
+          <div class="swatch-name">浅青</div>
+          <div class="swatch-label">#5CC8D8<br>兵种/高亮</div>
+        </div>
+        <div class="color-swatch">
+          <div class="swatch-circle" style="background:rgba(127,179,224,0.3);border-color:rgba(127,179,224,0.3)"></div>
+          <div class="swatch-name">蓝光晕</div>
+          <div class="swatch-label">rgba 0.25<br>敌方光效</div>
+        </div>
+      </div>
+
+      <div style="font-size:12px;font-weight:700;margin:20px 0 12px;color:var(--text-primary)">中立 & 环境 · NEUTRAL & ENV</div>
+      <div class="color-row">
+        <div class="color-swatch">
+          <div class="swatch-circle" style="background:#9E9B95"></div>
+          <div class="swatch-name">中灰</div>
+          <div class="swatch-label">#9E9B95<br>中立节点</div>
+        </div>
+        <div class="color-swatch">
+          <div class="swatch-circle" style="background:#F2F0EC"></div>
+          <div class="swatch-name">暖白</div>
+          <div class="swatch-label">#F2F0EC<br>画布背景</div>
+        </div>
+        <div class="color-swatch">
+          <div class="swatch-circle" style="background:#E2DFD9"></div>
+          <div class="swatch-name">网格灰</div>
+          <div class="swatch-label">#E2DFD9<br>背景点阵</div>
+        </div>
+        <!-- <div class="color-swatch">
+          <div class="swatch-circle" style="background:#D4A853"></div>
+          <div class="swatch-name">金色</div>
+          <div class="swatch-label">#D4A853<br>战斗/警告</div>
+        </div> -->
+        <div class="color-swatch">
+          <div class="swatch-circle" style="background:#5BA870"></div>
+          <div class="swatch-name">草绿</div>
+          <div class="swatch-label">#5BA870<br>HP/安全</div>
+        </div>
+      </div>
+    </div>
+
+    <div class="palette-section">
+      <div class="palette-title">节点视觉规格 · Node Visuals</div>
+      <div class="palette-subtitle">
+        所有节点以圆形为核心形态。大小、填充方式和颜色共同编码节点类型与阵营归属。<br>
+        玩家/敌方节点为实心圆，中立节点为虚线空心圆——这与你的参考图一致。
+      </div>
+      <div class="node-specs">
+        <div class="node-spec-card">
+          <div class="node-spec-visual">
+            <svg width="80" height="80" viewBox="0 0 80 80">
+              <circle cx="40" cy="40" r="32" fill="#1B2F4B" />
+              <circle cx="40" cy="40" r="32" fill="none" stroke="#7FB3E0" stroke-width="2" opacity="0.4"/>
+            </svg>
+          </div>
+          <div style="text-align:center">
+            <div style="font-size:12px;font-weight:700">玩家城市</div>
+            <div style="font-size:10px;color:var(--text-secondary)">大实心圆 · r=32~40px<br>深海蓝填充 + 浅蓝描边</div>
+          </div>
+        </div>
+        <div class="node-spec-card">
+          <div class="node-spec-visual">
+            <svg width="80" height="80" viewBox="0 0 80 80">
+              <circle cx="40" cy="40" r="24" fill="#2D5A8E" />
+            </svg>
+          </div>
+          <div style="text-align:center">
+            <div style="font-size:12px;font-weight:700">玩家资源点</div>
+            <div style="font-size:10px;color:var(--text-secondary)">中实心圆 · r=24~30px<br>主蓝填充</div>
+          </div>
+        </div>
+        <div class="node-spec-card">
+          <div class="node-spec-visual">
+            <svg width="80" height="80" viewBox="0 0 80 80">
+              <circle cx="40" cy="40" r="32" fill="#8B1A1A" />
+              <circle cx="40" cy="40" r="32" fill="none" stroke="#E87070" stroke-width="2" opacity="0.4"/>
+            </svg>
+          </div>
+          <div style="text-align:center">
+            <div style="font-size:12px;font-weight:700">敌方城市</div>
+            <div style="font-size:10px;color:var(--text-secondary)">大实心圆 · r=32~40px<br>暗红填充 + 浅红描边</div>
+          </div>
+        </div>
+        <div class="node-spec-card">
+          <div class="node-spec-visual">
+            <svg width="80" height="80" viewBox="0 0 80 80">
+              <circle cx="40" cy="40" r="24" fill="#C43C3C" />
+            </svg>
+          </div>
+          <div style="text-align:center">
+            <div style="font-size:12px;font-weight:700">敌方资源点</div>
+            <div style="font-size:10px;color:var(--text-secondary)">中实心圆 · r=24~30px<br>主红填充</div>
+          </div>
+        </div>
+        <div class="node-spec-card">
+          <div class="node-spec-visual">
+            <svg width="80" height="80" viewBox="0 0 80 80">
+              <circle cx="40" cy="40" r="20" fill="none" stroke="#9E9B95" stroke-width="2" stroke-dasharray="6 4"/>
+            </svg>
+          </div>
+          <div style="text-align:center">
+            <div style="font-size:12px;font-weight:700">中立节点</div>
+            <div style="font-size:10px;color:var(--text-secondary)">空心虚线圆 · r=20~25px<br>灰色描边</div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div class="palette-section">
+      <div class="palette-title">桥梁线型规格 · Bridge Lines</div>
+      <div class="palette-subtitle">
+        桥梁用不同的线型编码状态：已建成=实线，建造中=虚线+半透明，潜在（hover）=淡点线。<br>
+        桥上移动的兵种用沿线段滑动的小圆点表示，自带轨迹拖尾动画。
+      </div>
+      <div class="bridge-specs">
+        <div class="bridge-spec-row">
+          <svg width="120" height="4" class="bridge-spec-line"><line x1="0" y1="2" x2="120" y2="2" stroke="#2D5A8E" stroke-width="3"/></svg>
+          <div>
+            <div class="bridge-spec-text">已建成桥梁 · BUILT</div>
+            <div class="bridge-spec-detail">实线 · 3px · 阵营颜色 · 100% 不透明</div>
+          </div>
+        </div>
+        <div class="bridge-spec-row">
+          <svg width="120" height="4" class="bridge-spec-line"><line x1="0" y1="2" x2="120" y2="2" stroke="#2D5A8E" stroke-width="2" stroke-dasharray="8 4" opacity="0.5"/></svg>
+          <div>
+            <div class="bridge-spec-text">建造中桥梁 · BUILDING</div>
+            <div class="bridge-spec-detail">虚线 · 2px · 阵营颜色 · 50% 透明 · 附带进度指示</div>
+          </div>
+        </div>
+        <div class="bridge-spec-row">
+          <svg width="120" height="4" class="bridge-spec-line"><line x1="0" y1="2" x2="120" y2="2" stroke="#B5B1AA" stroke-width="1" stroke-dasharray="2 6"/></svg>
+          <div>
+            <div class="bridge-spec-text">潜在桥梁 · POTENTIAL</div>
+            <div class="bridge-spec-detail">点线 · 1px · 浅灰 · 仅在 hover / 建桥模式时显示</div>
+          </div>
+        </div>
+        <!-- <div class="bridge-spec-row">
+          <svg width="120" height="4" class="bridge-spec-line"><line x1="0" y1="2" x2="120" y2="2" stroke="#C43C3C" stroke-width="3"/></svg>
+          <div>
+            <div class="bridge-spec-text">敌方桥梁 · ENEMY BUILT</div>
+            <div class="bridge-spec-detail">实线 · 3px · 红色系</div>
+          </div>
+        </div> -->
+      </div>
+    </div>
+
+    <div class="palette-section">
+      <div class="palette-title">兵种与动画 · Units & Motion</div>
+      <div class="palette-subtitle">
+        兵种统一为小圆点（r=5px），围绕所属节点做环形排列。选中时外圈发光。<br>
+        在桥上移动时，沿线段匀速滑动，带微弱拖尾（trail）效果，用 opacity 渐变实现。<br>
+        战斗中的节点/桥梁添加黄色闪烁叠加标记，频率约 2Hz。
+      </div>
+    </div>
+
+    <div class="palette-section">
+      <div class="palette-title">UI 面板风格 · Panel Style</div>
+      <div class="palette-subtitle">
+        所有 UI 面板采用深色半透明底（rgba(20,20,18,0.88)），搭配 blur(12px) 毛玻璃效果。<br>
+        圆角 8px，边框 1px rgba(255,255,255,0.08)。<br>
+        文字使用 Noto Sans SC（中文）+ Space Mono（数字/代码），SDF 渲染确保缩放清晰。<br>
+        按钮状态：默认 → hover 加亮 → active 阵营色填充。
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ==================== PAGE 3: INTERACTION FLOW ==================== -->
+<div class="page-content" id="page2">
+  <div class="flow-page">
+    <div class="flow-section">
+      <div class="flow-title">Flow A · 选中节点 → 查看信息</div>
+      <div class="flow-desc">玩家的所有操作都从「点击节点」开始。这是整个交互体系的入口。</div>
+      <div class="flow-steps">
+        <div class="flow-step">
+          <div class="flow-step-label">① 鼠标悬停节点</div>
+          <div class="flow-step-detail">节点外围出现浅色光圈（glow），连接的桥梁轻微加亮。Cursor 变为 pointer。</div>
+        </div>
+        <div class="flow-step">
+          <div class="flow-step-label">② 左键点击节点</div>
+          <div class="flow-step-detail">节点被选中，外围光圈变为实色高亮。左下角弹出「节点信息面板」，底部弹出「驻军指挥面板」（若有驻军）。</div>
+        </div>
+        <div class="flow-step">
+          <div class="flow-step-label">③ 面板展示</div>
+          <div class="flow-step-detail">节点面板显示：类型、HP 条、阵营标记、驻军数量/上限、连接节点列表。如果是己方城市，右侧还出现「生产面板」。</div>
+        </div>
+        <div class="flow-step">
+          <div class="flow-step-label">④ 点击空白/ESC 关闭</div>
+          <div class="flow-step-detail">所有面板关闭，节点取消选中，恢复默认视图。</div>
+        </div>
+      </div>
+    </div>
+
+    <div class="flow-section">
+      <div class="flow-title">Flow B · 派兵移动</div>
+      <div class="flow-desc">从驻军中选择士兵，派遣到相邻节点。士兵上桥后脱离控制，直到抵达。</div>
+      <div class="flow-steps">
+        <div class="flow-step">
+          <div class="flow-step-label">① 选中己方节点（触发 Flow A）</div>
+          <div class="flow-step-detail">底部指挥面板显示该节点所有驻军，以圆点网格排列，每个圆点下方有 HP 条。</div>
+        </div>
+        <div class="flow-step">
+          <div class="flow-step-label">② 选择士兵</div>
+          <div class="flow-step-detail">点击单个兵种圆点选中/取消。点击「全选」一键选中全部。选中的圆点加蓝色外发光。</div>
+        </div>
+        <div class="flow-step">
+          <div class="flow-step-label">③ 点击「派遣到目标」按钮</div>
+          <div class="flow-step-detail">进入目标选择模式：所有通过桥连接的节点变为脉冲高亮，其他节点变暗。Cursor 变为十字准星。</div>
+        </div>
+        <div class="flow-step">
+          <div class="flow-step-label">④ 点击目标节点</div>
+          <div class="flow-step-detail">选中的士兵进入「移动中」状态，从当前节点沿桥梁线段向目标滑动。面板刷新驻军数。</div>
+        </div>
+        <div class="flow-step">
+          <div class="flow-step-label">⑤ 到达目标</div>
+          <div class="flow-step-detail">己方节点 → 自动加入驻军。敌方/中立 → 触发 Flow D 战斗。</div>
+        </div>
+      </div>
+    </div>
+
+    <div class="flow-section">
+      <div class="flow-title">Flow C · 建造桥梁</div>
+      <div class="flow-desc">连接两个未连通的节点，消耗 β 资源和兵力。</div>
+      <div class="flow-steps">
+        <div class="flow-step">
+          <div class="flow-step-label">① 选中己方节点，点击「建桥」按钮</div>
+          <div class="flow-step-detail">进入建桥模式：范围内可连接的目标节点显示浅灰色点线预览。超出范围的节点灰暗。</div>
+        </div>
+        <div class="flow-step">
+          <div class="flow-step-label">② 点击目标节点</div>
+          <div class="flow-step-detail">弹出建桥确认浮层：显示目标名称、距离（短/中/长）、消耗 β、预计耗时、最少兵力要求。</div>
+        </div>
+        <div class="flow-step">
+          <div class="flow-step-label">③ 确认建造</div>
+          <div class="flow-step-detail">立即扣除 β 资源。分配的兵进入「建造中」锁定状态。两节点间出现虚线+进度条动画。</div>
+        </div>
+        <div class="flow-step">
+          <div class="flow-step-label">④ 建造完成</div>
+          <div class="flow-step-detail">虚线变为实线。建造兵自动返回出发节点。连接关系更新，双方可通行。</div>
+        </div>
+      </div>
+    </div>
+
+    <div class="flow-section">
+      <div class="flow-title">Flow D · 战斗发生</div>
+      <div class="flow-desc">当敌我兵种在同一位置相遇时，自动触发即时战斗。</div>
+      <div class="flow-steps">
+        <div class="flow-step">
+          <div class="flow-step-label">① 触发条件</div>
+          <div class="flow-step-detail">进攻方兵抵达敌方/中立节点，或双方兵在桥上相遇。</div>
+        </div>
+        <div class="flow-step">
+          <div class="flow-step-label">② 视觉反馈</div>
+          <div class="flow-step-detail">战斗位置叠加黄色闪烁标记（⚡交叉）。右上角弹出 Toast 通知：「节点 #X 正在被攻击」。</div>
+        </div>
+        <div class="flow-step">
+          <div class="flow-step-label">③ 自动结算</div>
+          <div class="flow-step-detail">集火逻辑自动执行。HP 条实时变化。兵种被消灭时播放缩小+淡出动画。</div>
+        </div>
+        <div class="flow-step">
+          <div class="flow-step-label">④ 结果</div>
+          <div class="flow-step-detail">进攻方胜利 → 开始攻击节点 HP → HP 归零 → 节点颜色渐变为进攻方阵营色。节点 HP 重置。</div>
+        </div>
+      </div>
+    </div>
+
+    <div class="flow-section">
+      <div class="flow-title">Flow E · 生产士兵</div>
+      <div class="flow-desc">在己方城市持续造兵，消耗 α 资源。</div>
+      <div class="flow-steps">
+        <div class="flow-step">
+          <div class="flow-step-label">① 选中己方城市节点</div>
+          <div class="flow-step-detail">右下角出现「生产面板」，显示 CD 环形进度、队列状态、单位消耗。</div>
+        </div>
+        <div class="flow-step">
+          <div class="flow-step-label">② 点击「开始生产」</div>
+          <div class="flow-step-detail">CD 环开始旋转。每个 CD 周期结束，扣除 α ×5，驻军 +1 个士兵，带弹出缩放动画。</div>
+        </div>
+        <div class="flow-step">
+          <div class="flow-step-label">③ 自动暂停</div>
+          <div class="flow-step-detail">α 不足或驻军满时自动暂停，CD 环停止。资源恢复后自动继续。</div>
+        </div>
+        <div class="flow-step">
+          <div class="flow-step-label">④ 手动暂停</div>
+          <div class="flow-step-detail">点击「暂停生产」按钮，立即停止。按钮切换为「开始生产」。</div>
+        </div>
+      </div>
+    </div>
+
+    <div class="flow-section">
+      <div class="flow-title">镜头控制 · Camera</div>
+      <div class="flow-desc">
+        拖拽平移：鼠标左键拖拽空白区域 / 中键拖拽，带惯性阻尼。<br>
+        滚轮缩放：最小显示 3 节点，最大全地图。缩放以鼠标位置为中心。<br>
+        边界限制：Clamp 到地图范围 + 10% 边距。<br>
+        [P2] 双击节点：镜头平滑居中到该节点。
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ==================== PAGE 4: SUGGESTIONS ==================== -->
+<!-- <div class="page-content" id="page3">
+  <div class="suggestions-page">
+    <div class="palette-title" style="margin-bottom:24px">策划案修改建议</div>
+
+    <div class="suggestion-card">
+      <div class="suggestion-tag tag-ux">UX</div>
+      <div class="suggestion-title">派兵操作建议支持「拖拽快捷操作」</div>
+      <div class="suggestion-body">
+        当前策划案要求：选节点 → 选兵 → 点按钮 → 选目标，共 4 步。建议增加一种快捷路径：<strong>从节点直接拖拽到目标节点</strong>，自动全选驻军并派遣。保留面板操作作为精细选择，但拖拽操作可以大幅降低 APM 压力，尤其在多线作战时。这在同类 RTT 游戏（如 Auralux、Tentacle Wars）中是标配交互。
+      </div>
+    </div>
+
+    <div class="suggestion-card">
+      <div class="suggestion-tag tag-ux">UX</div>
+      <div class="suggestion-title">建议增加「派遣数量滑块」而非只能单个点选</div>
+      <div class="suggestion-body">
+        当驻军有 15+ 个兵时，在面板里一个个点选非常繁琐。建议在指挥面板增加一个数量滑块（或 +/- 按钮），玩家拖到想要的数量即可。结合「全选」和「滑块」，可以覆盖「全部」「部分」「精确」三种场景。
+      </div>
+    </div>
+
+    <div class="suggestion-card">
+      <div class="suggestion-tag tag-mechanic">机制</div>
+      <div class="suggestion-title">拆桥机制过于严厉，建议调整</div>
+      <div class="suggestion-body">
+        策划案中拆桥需要建造时间的 2 倍，且需投入兵力。这意味着拆桥几乎不会被主动使用——玩家没有动机花双倍时间+兵力去拆自己的桥。建议改为：<strong>己方拆自己的桥 = 瞬间拆除（仅限无敌方单位在桥上时）</strong>，敌方要拆对方的桥才需要投入攻击/时间。这样「拆桥」变成一种有趣的防守战术（断敌退路/阻止追击），而不是永远用不上的功能。
+      </div>
+    </div>
+
+    <div class="suggestion-card">
+      <div class="suggestion-tag tag-visual">视觉</div>
+      <div class="suggestion-title">建议节点增加「驻军数量」的视觉编码</div>
+      <div class="suggestion-body">
+        当前设计中，驻军数量需要点击节点打开面板才能看到。但在即时战略中，玩家需要「一览全局」的能力。建议在节点周围用小圆点环绕排列来表示驻军数（你的参考图中已有类似意图）。环绕圆点数量 = 驻军数，超过上限时可用数字标注。这样玩家不用点开每个节点就能判断兵力分布。
+      </div>
+    </div>
+
+    <div class="suggestion-card">
+      <div class="suggestion-tag tag-visual">视觉</div>
+      <div class="suggestion-title">资源节点建议增加资源类型视觉区分</div>
+      <div class="suggestion-body">
+        三种资源节点（α/β/γ）目前在视觉上没有区分方式，都是「中实心圆」。建议用节点中心的小图标或纹理来区分：例如 α 节点中心有一个小十字、β 节点中心有两条平行线、γ 节点中心有一个小三角。保持极简风格的同时增加信息密度。
+      </div>
+    </div>
+
+    <div class="suggestion-card">
+      <div class="suggestion-tag tag-mechanic">机制</div>
+      <div class="suggestion-title">AI 刷怪不消耗资源会导致后期失衡</div>
+      <div class="suggestion-body">
+        敌方 AI 虚空刷怪不消耗资源，但刷怪速度随时间加速且受资源节点加成。这意味着如果玩家没有在前中期建立绝对优势，后期 AI 的数量优势将完全不可逆。建议给 AI 也设置一个简化的资源系统，或者将刷怪上限和地图上中立节点总数挂钩（占领越多中立节点，AI 刷怪越慢），给玩家一个可以通过策略控制难度曲线的杠杆。
+      </div>
+    </div>
+
+    <div class="suggestion-card">
+      <div class="suggestion-tag tag-perf">性能</div>
+      <div class="suggestion-title">桥上战斗的「10 秒固定交战」建议改为动态时长</div>
+      <div class="suggestion-body">
+        策划案中桥上战斗固定 10 秒交战，但如果双方兵力悬殊（例如 1 vs 8），10 秒显得过长。建议改为：战斗持续到一方全灭或分离（以先到者为准），不设固定时长。这样既简化了逻辑，也让玩家的兵力判断更有意义。
+      </div>
+    </div>
+
+    <div class="suggestion-card">
+      <div class="suggestion-tag tag-ux">UX</div>
+      <div class="suggestion-title">建议增加「战斗回放/日志」功能（P2）</div>
+      <div class="suggestion-body">
+        即时制战斗的一个常见痛点是「错过了发生了什么」。建议在 Toast 通知旁边加一个简易战斗日志面板（可折叠），记录最近 10 条战斗事件（谁攻击了谁、哪个节点被占领、损失了多少兵）。这对玩家复盘和策略调整非常有帮助。
+      </div>
+    </div>
+  </div>
+</div> -->
+
+<script>
+// Page switching
+function switchPage(idx) {
+  document.querySelectorAll('.page-tab').forEach((t,i) => t.classList.toggle('active', i===idx));
+  document.querySelectorAll('.page-content').forEach((p,i) => p.classList.toggle('active', i===idx));
+  if(idx === 0) drawGame();
+}
+
+// Unit slot click
+document.querySelectorAll('.unit-slot').forEach(slot => {
+  slot.addEventListener('click', () => slot.classList.toggle('selected'));
+});
+
+// ===== GAME CANVAS DRAWING =====
+function drawGame() {
+  const canvas = document.getElementById('gameCanvas');
+  const ctx = canvas.getContext('2d');
+  canvas.width = canvas.offsetWidth * 2;
+  canvas.height = canvas.offsetHeight * 2;
+  ctx.scale(2, 2);
+  const W = canvas.offsetWidth, H = canvas.offsetHeight;
+
+  // Define nodes
+  const nodes = [
+    { id:0, x:W*0.15, y:H*0.3, r:28, type:'playerCity', label:'城市α' },
+    { id:1, x:W*0.28, y:H*0.15, r:28, type:'playerCity', label:'城市β' },
+    { id:2, x:W*0.1, y:H*0.65, r:20, type:'neutral', label:'中立' },
+    { id:3, x:W*0.32, y:H*0.55, r:22, type:'playerRes', label:'资源α' },
+    { id:4, x:W*0.22, y:H*0.8, r:22, type:'playerRes', label:'资源β' },
+    { id:5, x:W*0.5, y:H*0.35, r:28, type:'enemyCity', label:'敌城' },
+    { id:6, x:W*0.6, y:H*0.18, r:22, type:'enemyRes', label:'资源' },
+    { id:7, x:W*0.55, y:H*0.6, r:22, type:'enemyRes', label:'资源' },
+    { id:8, x:W*0.68, y:H*0.45, r:22, type:'enemyRes', label:'资源' },
+    { id:9, x:W*0.78, y:H*0.12, r:20, type:'neutral', label:'中立' },
+    { id:10, x:W*0.82, y:H*0.7, r:20, type:'neutral', label:'中立' },
+    { id:11, x:W*0.42, y:H*0.78, r:20, type:'neutral', label:'中立' },
+    { id:12, x:W*0.88, y:H*0.35, r:20, type:'neutral', label:'中立' },
+    { id:13, x:W*0.92, y:H*0.5, r:24, type:'victory', label:'胜利' },
+  ];
+
+  // Define bridges
+  const bridges = [
+    { a:0, b:1, state:'built', faction:'player' },
+    { a:0, b:2, state:'built', faction:'player' },
+    { a:1, b:3, state:'built', faction:'player' },
+    { a:0, b:3, state:'building', faction:'player' },
+    { a:3, b:4, state:'built', faction:'player' },
+    { a:5, b:6, state:'built', faction:'enemy' },
+    { a:5, b:7, state:'built', faction:'enemy' },
+    { a:5, b:8, state:'built', faction:'enemy' },
+    { a:6, b:8, state:'built', faction:'enemy' },
+    { a:7, b:8, state:'built', faction:'enemy' },
+    { a:6, b:9, state:'built', faction:'enemy' },
+    { a:8, b:10, state:'built', faction:'enemy' },
+    { a:1, b:5, state:'potential', faction:'none' },
+    { a:3, b:5, state:'potential', faction:'none' },
+    { a:4, b:11, state:'potential', faction:'none' },
+    { a:9, b:12, state:'potential', faction:'none' },
+  ];
+
+  // Draw bridges
+  bridges.forEach(b => {
+    const nA = nodes[b.a], nB = nodes[b.b];
+    ctx.beginPath();
+    ctx.moveTo(nA.x, nA.y);
+    ctx.lineTo(nB.x, nB.y);
+    if(b.state === 'built') {
+      ctx.strokeStyle = b.faction === 'player' ? '#C43C3C' : '#2A8A9A';
+      ctx.lineWidth = 2.5;
+      ctx.setLineDash([]);
+    } else if(b.state === 'building') {
+      ctx.strokeStyle = 'rgba(196,60,60,0.5)';
+      ctx.lineWidth = 2;
+      ctx.setLineDash([8, 4]);
+    } else {
+      ctx.strokeStyle = 'rgba(158,155,149,0.3)';
+      ctx.lineWidth = 1;
+      ctx.setLineDash([2, 6]);
+    }
+    ctx.stroke();
+    ctx.setLineDash([]);
+  });
+
+  // Moving units on bridges
+  const time = Date.now() / 1000;
+  // Player units moving on bridge 0->1
+  const movingUnits = [
+    { bridge: {a:0,b:1}, t: (time*0.15)%1, color: '#E87070' },
+    { bridge: {a:0,b:1}, t: ((time*0.15)+0.08)%1, color: '#E87070' },
+    { bridge: {a:0,b:1}, t: ((time*0.15)+0.16)%1, color: '#E87070' },
+    { bridge: {a:5,b:7}, t: (time*0.12)%1, color: '#5CC8D8' },
+    { bridge: {a:5,b:7}, t: ((time*0.12)+0.1)%1, color: '#5CC8D8' },
+  ];
+  movingUnits.forEach(u => {
+    const nA = nodes[u.bridge.a], nB = nodes[u.bridge.b];
+    const x = nA.x + (nB.x - nA.x) * u.t;
+    const y = nA.y + (nB.y - nA.y) * u.t;
+    // Trail
+    for(let i=3; i>0; i--) {
+      const tt = u.t - i*0.025;
+      if(tt < 0) continue;
+      const tx = nA.x + (nB.x - nA.x) * tt;
+      const ty = nA.y + (nB.y - nA.y) * tt;
+      ctx.beginPath();
+      ctx.arc(tx, ty, 3, 0, Math.PI*2);
+      ctx.fillStyle = u.color;
+      ctx.globalAlpha = 0.15 * (4-i)/4;
+      ctx.fill();
+    }
+    ctx.globalAlpha = 1;
+    ctx.beginPath();
+    ctx.arc(x, y, 4, 0, Math.PI*2);
+    ctx.fillStyle = u.color;
+    ctx.fill();
+  });
+
+  // Draw nodes
+  nodes.forEach(n => {
+    ctx.beginPath();
+    ctx.arc(n.x, n.y, n.r, 0, Math.PI*2);
+    
+    if(n.type === 'playerCity') {
+      ctx.fillStyle = '#7A1B1B';
+      ctx.fill();
+      ctx.strokeStyle = 'rgba(232,112,112,0.4)';
+      ctx.lineWidth = 2;
+      ctx.stroke();
+    } else if(n.type === 'playerRes') {
+      ctx.fillStyle = '#C43C3C';
+      ctx.fill();
+    } else if(n.type === 'enemyCity') {
+      ctx.fillStyle = '#1A4A5A';
+      ctx.fill();
+      ctx.strokeStyle = 'rgba(92,200,216,0.4)';
+      ctx.lineWidth = 2;
+      ctx.stroke();
+    } else if(n.type === 'enemyRes') {
+      ctx.fillStyle = '#2A8A9A';
+      ctx.fill();
+    } else if(n.type === 'victory') {
+      ctx.fillStyle = '#D4A853';
+      ctx.fill();
+      ctx.strokeStyle = 'rgba(212,168,83,0.5)';
+      ctx.lineWidth = 3;
+      ctx.stroke();
+    }else {
+      ctx.fillStyle = 'transparent';
+      ctx.fill();
+      ctx.strokeStyle = '#9E9B95';
+      ctx.lineWidth = 2;
+      ctx.setLineDash([5, 3]);
+      ctx.stroke();
+      ctx.setLineDash([]);
+    } 
+
+    // Garrison dots around player nodes
+    if(n.type === 'playerCity' || n.type === 'playerRes') {
+      const count = n.type === 'playerCity' ? 8 : 4;
+      for(let i=0; i<count; i++) {
+        const angle = (Math.PI * 2 / count) * i - Math.PI/2 + time * 0.3;
+        const gx = n.x + Math.cos(angle) * (n.r + 10);
+        const gy = n.y + Math.sin(angle) * (n.r + 10);
+        ctx.beginPath();
+        ctx.arc(gx, gy, 3.5, 0, Math.PI*2);
+        ctx.fillStyle = '#E87070';
+        ctx.fill();
+      }
+    }
+    if(n.type === 'enemyCity' || n.type === 'enemyRes') {
+      const count = n.type === 'enemyCity' ? 10 : 3;
+      for(let i=0; i<count; i++) {
+        const angle = (Math.PI * 2 / count) * i - Math.PI/2 - time * 0.2;
+        const gx = n.x + Math.cos(angle) * (n.r + 10);
+        const gy = n.y + Math.sin(angle) * (n.r + 10);
+        ctx.beginPath();
+        ctx.arc(gx, gy, 3.5, 0, Math.PI*2);
+        ctx.fillStyle = '#5CC8D8';
+        ctx.fill();
+      }
+    }
+
+    // Node label
+    ctx.font = '500 10px "Noto Sans SC", sans-serif';
+    ctx.fillStyle = n.type.includes('neutral') ? '#9E9B95' : 'rgba(255,255,255,0.7)';
+    ctx.textAlign = 'center';
+    ctx.fillText(n.label, n.x, n.y + 3);
+  });
+
+  // Battle indicator on node 5 (enemy city)
+  const battlePulse = Math.sin(time * 4) * 0.5 + 0.5;
+  ctx.beginPath();
+  ctx.arc(nodes[5].x, nodes[5].y, nodes[5].r + 18, 0, Math.PI*2);
+  ctx.strokeStyle = `rgba(212,168,83,${battlePulse * 0.6})`;
+  ctx.lineWidth = 2;
+  ctx.stroke();
+
+  // Draw minimap
+  drawMinimap(nodes, bridges);
+
+  requestAnimationFrame(drawGame);
+}
+
+function drawMinimap(nodes, bridges) {
+  const mc = document.getElementById('minimapCanvas');
+  const mctx = mc.getContext('2d');
+  mc.width = 320; mc.height = 240;
+  mctx.clearRect(0, 0, 320, 240);
+  
+  const W = document.getElementById('gameCanvas').offsetWidth;
+  const H = document.getElementById('gameCanvas').offsetHeight;
+  const sx = 320/W, sy = 240/H;
+
+  bridges.forEach(b => {
+    const nA = nodes[b.a], nB = nodes[b.b];
+    mctx.beginPath();
+    mctx.moveTo(nA.x*sx, nA.y*sy);
+    mctx.lineTo(nB.x*sx, nB.y*sy);
+    if(b.state==='built') {
+      mctx.strokeStyle = b.faction==='player'?'rgba(196,60,60,0.6)':'rgba(42,138,154,0.6)';
+      mctx.lineWidth = 1;
+    } else {
+      mctx.strokeStyle = 'rgba(158,155,149,0.2)';
+      mctx.lineWidth = 0.5;
+    }
+    mctx.stroke();
+  });
+
+  nodes.forEach(n => {
+    mctx.beginPath();
+    mctx.arc(n.x*sx, n.y*sy, 4, 0, Math.PI*2);
+    if(n.type.includes('player')) mctx.fillStyle = '#C43C3C';
+    else if(n.type.includes('enemy')) mctx.fillStyle = '#2A8A9A';
+    else mctx.fillStyle = '#9E9B95';
+    mctx.fill();
+  });
+
+  // Viewport rect
+  mctx.strokeStyle = 'rgba(255,255,255,0.3)';
+  mctx.lineWidth = 1;
+  mctx.strokeRect(10, 10, 300, 220);
+}
+
+// Initial draw
+window.addEventListener('load', drawGame);
+window.addEventListener('resize', () => { if(document.getElementById('page0').classList.contains('active')) drawGame(); });
+</script>
+</body>
+</html>
